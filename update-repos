@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+
+# update-repos:  Updates Apt sources that do not match the current OS release codename and are not
+#                devel, stable, beta, etc... but only if a repository for the current OS exists.
+#
+# If you use the Ubuntu devel repos (i.e. have your main sources set to 'devel'), this script
+# is useful to maintain other sources that only offer specific releases.  For example, repos such
+# as Azure-CLI, WineHQ, Signal, Docker, etc. which do not have 'stable' or 'devel' release options.
+#
+# Example usage:
+#
+#       sudo update-repos
+#
+# Example output:
+#
+#       evil(base) 15:12:19 evil@H510 ~/src/l-aptupdater» sudo ./update-repos 
+#       Current OS release codename: oracular
+#
+#       signal.list currently using to 'xenial'.  Checking for current version...
+#          No newer version found.
+#
+#       docker.list currently using to 'noble'.  Checking for newer version...
+#          Newer version found
+#          Updating docker.list to use 'oracular'
+#
+#       azure-cli.list currently using to 'noble'.  Checking for current version...
+#          No newer version found.
+#
+#       winehq.list currently using to 'noble'.  Checking for current version...
+#          No newer version found.
+#
+# Note:  If you don't practice good backup habits, you should probably look into that before
+#        running this script.  At the very least, make a copy of your
+#        /etc/apt/sources.list.d/*.list files in case you trash a source.  You have been warned.
+#
+# 3vi1 - 2024-09-28
+#
+
+from bs4 import BeautifulSoup
+import fileinput
+import os
+import re
+import requests
+import subprocess
+import sys
+
+ignoreRepos = '/|beta|devel|experimental|insiders-fast|release|stable'
+
+# Get the current OS release codename
+def get_os_release_codename():
+    try:
+        os_release = subprocess.check_output(['lsb_release', '-c']).decode('utf-8')
+        os_release_codename = os_release.split()[1]
+        return os_release_codename
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+def update_repo(filepath, url, currentVersion, codename):
+    filename = os.path.basename(filepath)
+    print(f"{filename} currently using to '{currentVersion}'.  Checking for current version...")
+
+    found = release_exists(url + "/dists/", codename)
+    writeFound(found)
+    
+    if(found):
+        # Update the apt file to use the current codename
+        print(f"   Updating {filename} to use '{codename}'")
+        # Update the file with the new codename
+        with fileinput.FileInput(filepath, inplace=True) as file:
+            for line in file:
+                if line.startswith('deb ') and currentVersion in line:
+                    print(line.replace(currentVersion, codename), end='')
+                else:
+                    print(line, end='')
+
+def release_exists(url, codename):
+    try:
+        # Send a GET request to the constructed URL
+        response = requests.get(url)
+        
+        # If the request was successful, parse the HTML content
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find all links on the page
+            links = soup.find_all('a', href=True)
+            
+            # Iterate over each link and check its text for the codename
+            found = False
+            for link in links:
+                if codename.lower() in link.text.lower():
+                    return True
+            
+            if not found:
+                return False
+                    
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching URL: {e}")
+        
+def writeFound(found):
+    if(found):
+        print("   Newer version found.\n")
+    else:
+        print("   No newer version found.\n")
+
+
+# Main function
+if __name__ == "__main__":
+
+    if os.geteuid() != 0:
+        command = f"sudo /usr/bin/env python3 {sys.argv[0]}"
+        subprocess.run(command, shell=True)
+        exit(1)
+
+    codename = get_os_release_codename()
+    print(f"Current OS release codename: {codename}\n")
+
+    # Read through all apt sources to find ones using ephemeral directories
+    directory_path = '/etc/apt/sources.list.d'
+    for filename in os.listdir(directory_path):
+        # Check if it's a regular file (not a directory)
+        filepath = os.path.join(directory_path, filename)
+        if os.path.isfile(filepath):
+            with open(filepath, 'rt', errors='ignore') as file:
+                # Read and iterate through each line in the file
+                for line in file:
+                    # Use a regex to search for lines starting with 'deb'
+                    match = re.search(r'^deb \[.*\] (https[^ ]+) ([^ ]+)', line)
+                    if match:
+                        # Check to verify the line does not contains the current OS release codename, stable, or devel in the URL
+                        ignore = '(' + codename + '|' + ignoreRepos + ')'
+                        if not re.search(ignore, match.group(2)):
+                            # print(f"Non-current ephemeral repository name in {filename}: {line.strip()}")
+                            update_repo(filepath, match.group(1), match.group(2), codename)
