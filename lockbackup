@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Lock and unmount a drive based on a partial id
+function LockLuksDrive {
+
+	# get the UID by removing /dev/mapper/luks- prefix
+	uid=${1#*-}
+
+	# Use the UID to find the actual device
+	mdev=$(blkid | grep "/dev/sd.*$uid" | sed 's/^\(\/dev\/sd[^:]*\):.*$/\1/' )
+
+	# Unmount LUKS partition
+	sudo umount $1
+	if [ ! -z "$mdev" ]
+	then
+		# and lock the device so that it can't simply be remounted without the password
+		udisksctl lock -b $mdev
+	else
+		echo $1 is not unlocked.
+	fi
+}
+
+
+# MAIN:  Lock every mounted luks partition
+mount | grep "luks" |
+while IFS= read -r line; do
+
+	# Even if the output is null, you get a line for some reason
+	if [ ! -z "$line" ] 
+	then
+
+		# Extract the mount point of each decrypted partition
+		mpoint=$(echo $line | sed 's/^\(.*\) on .*/\1/')
+
+		echo Locking $mpoint.
+		LockLuksDrive $mpoint
+
+	fi
+
+done
+#done <<< "$drives"
