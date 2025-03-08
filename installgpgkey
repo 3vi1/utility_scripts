@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+#
+# installgpgkey firefox-next AEBDF4819BE21867
+#
+
+KEYSERVER=${3:-"keyserver.ubuntu.com"}
+
+sudo gpg --homedir /tmp --no-default-keyring --keyring /tmp/$1-$2.gpg_keyring --keyserver $KEYSERVER --recv-keys $2
+sudo gpg --no-default-keyring --keyring /tmp/$1-$2.gpg_keyring --export > /etc/apt/trusted.gpg.d/$1.gpg
