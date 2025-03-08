@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# NOTE:  THIS IS FOR THE OLD APT FORMAT.  NEEDS TO BE UPDATED FOR MODERN CONFIG FILES
+
 # update-repos:  Updates Apt sources that do not match the current OS release codename and are not
 #                devel, stable, beta, etc... but only if a repository for the current OS exists.
 #
