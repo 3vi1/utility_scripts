@@ -1,0 +1,55 @@
+#!/bin/bash
+set -e
+
+#
+# fliplr <path>
+#
+# "Flips" a directory/symlink back and forth between a real directory and a symlink to /ram/,
+# stashing the real directory alongside it as <path>.l when it's not in use.
+#
+#   - If <path> is a symlink, it is removed and <path>.l is renamed back to <path>.
+#   - If <path> is a real directory, it is renamed to <path>.l and a new symlink named
+#     <path> is created pointing to /ram/.
+#
+# Example usage:
+#
+#       fliplr /home/user/cache
+#
+
+if [ -z "$1" ]
+then
+	echo "Usage: fliplr <directory-or-symlink>" >&2
+	exit 1
+fi
+
+target=$1
+stashed="$target.l"
+
+if [ -L "$target" ]
+then
+	# It's a symlink: remove it and rename the stashed directory back into place.
+	if [ ! -d "$stashed" ]
+	then
+		echo "fliplr: '$stashed' does not exist; cannot restore '$target'." >&2
+		exit 1
+	fi
+	rm "$target"
+	mv "$stashed" "$target"
+elif [ -d "$target" ]
+then
+	# It's a real directory: stash it as <target>.l and symlink <target> to /ram/.
+	if [ -e "$stashed" ]
+	then
+		echo "fliplr: '$stashed' already exists; cannot stash '$target'." >&2
+		exit 1
+	fi
+	mv "$target" "$stashed"
+	ln -s /ram/ "$target"
+elif [ -e "$target" ]
+then
+	echo "fliplr: '$target' exists but is neither a symlink nor a directory." >&2
+	exit 1
+else
+	echo "fliplr: '$target' does not exist." >&2
+	exit 1
+fi
