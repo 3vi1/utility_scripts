@@ -35,6 +35,7 @@ then
 	fi
 	rm "$target"
 	mv "$stashed" "$target"
+	echo "fliplr: '$target' is now a local directory."
 elif [ -d "$target" ]
 then
 	# It's a real directory: stash it as <target>.l and symlink <target> to /ram/.
@@ -45,6 +46,7 @@ then
 	fi
 	mv "$target" "$stashed"
 	ln -s /ram/ "$target"
+	echo "fliplr: '$target' is now a symlink to /ram/ (RAM disk)."
 elif [ -e "$target" ]
 then
 	echo "fliplr: '$target' exists but is neither a symlink nor a directory." >&2
