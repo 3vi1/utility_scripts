@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#  rbackup.py
+#  
+#  2018 - Evil Jay <evil@clevo>
+#  
+
+from os import path
+import socket
+from subprocess import CalledProcessError, run
+
+def main(args):
+
+    cmd = "sudo rsync -avzh --exclude=.cache --exclude=.ccache --exclude=.xsession-errors --exclude=oooooooo.ooo --exclude=swap.img --exclude=Docker.raw --delete --progress"
+
+    # System dirs like /etc & /opt are backed up via timeshift
+    sources = ("/home", "/1tb_int", "/2tb_ssd", "/data")
+
+    # Set backup path.  Override if there was one specified on the command line
+    target = "/media/backup/" + socket.gethostname() + "/"
+    if len(args) == 2:
+        target = args[1]
+        if target[-1] != '/':
+            target += "/"
+    
+    # Exit if backup path doesn't look valid
+    if not path.isdir(target):
+        print("Destination path doesn't exist: ", target)
+        print("Perhaps the drive isn't mounted in that location?")
+        return 1
+    
+    target = path.abspath(target) + "/"
+
+    try:
+        for source in sources:
+            print("\nBacking up", source)
+            run(cmd.split() + [source, target], check=True)
+    except KeyboardInterrupt:
+        print("\nBackup interrupted.")
+        return 2
+    except (CalledProcessError, OSError) as error:
+        print("\nBackup failed:", error)
+        return 1
+    
+    return 0
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(main(sys.argv))
